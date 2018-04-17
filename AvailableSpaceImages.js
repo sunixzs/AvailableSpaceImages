@@ -14,149 +14,161 @@
  */
 
 (function (window) {
-	'use strict';
+    'use strict';
 
-	var AvailableSpaceImages = function (params) {
-		this.settings = {
-			querySelector: "[data-method=\"mab-available-space-image\"]",
-			onInit: null
-		}
+    var AvailableSpaceImages = function (params) {
+        this.settings = {
+            querySelector: "[data-method=\"mab-available-space-image\"]",
+            onInit: null
+        }
 
-		if (typeof params === "object") {
-			for (var key in params) {
-				if (params.hasOwnProperty(key) && typeof this.settings[key] !== "undefined") {
-					this.settings[key] = params[key];
-				}
-			}
-		}
+        // override settings
+        if (typeof params === "object") {
+            for (var key in params) {
+                if (params.hasOwnProperty(key) && typeof this.settings[key] !== "undefined") {
+                    this.settings[key] = params[key];
+                }
+            }
+        }
 
-		this.devicePixelRatio = window.devicePixelRatio || 1;
-		this.imageSets = [];
-		this.observer = null;
-		this.imageCollection = document.querySelectorAll(this.settings.querySelector);
+        this.devicePixelRatio = window.devicePixelRatio || 1; // display pixel depth
+        this.imageSets = []; // storage for all image stuff
+        this.observer = null; // IntersectionObserver
+        this.imageCollection = document.querySelectorAll(this.settings.querySelector); // found images
 
-		this.init();
-	}
+        // start the magick
+        this.init();
+    }
 
-	AvailableSpaceImages.prototype = {
-		init: function () {
-			var self = this;
+    AvailableSpaceImages.prototype = {
+        init: function () {
+            var self = this;
 
-			
+            // build images data
+            var i = 0;
+            this.imageCollection.forEach(function (image) {
+                if (image.tagName.toLowerCase() !== "img") {
+                    return; // continue
+                }
 
-			// build images data
-			var i = 0;
-			this.imageCollection.forEach(function (image) {
-				if (image.tagName.toLowerCase() !== "img") {
-					return; // continue
-				}
+                // build source-set
+                var sourceSet = [{
+                    width: 320,
+                    src: image.getAttribute("src")
+                }];
 
-				// build source-set
-				var sourceSet = [{
-					width: 320,
-					src: image.getAttribute("src")
-				}];
+                for (var a = 0; a < image.attributes.length; a++) {
+                    if (image.attributes[a].nodeName.indexOf("data-src-") === 0) {
+                        var k = parseInt(image.attributes[a].nodeName.replace("data-src-", ""));
+                        if (k) {
+                            sourceSet.push({
+                                width: k,
+                                src: image.attributes[a].nodeValue
+                            });
+                        }
+                    }
+                }
 
-				for (var a = 0; a < image.attributes.length; a++) {
-					if (image.attributes[a].nodeName.indexOf("data-src-") === 0) {
-						var k = parseInt(image.attributes[a].nodeName.replace("data-src-", ""));
-						if (k) {
-							sourceSet.push({
-								width: k,
-								src: image.attributes[a].nodeValue
-							});
-						}
-					}
-				}
-				sourceSet.sort(function (a, b) {
-					var r = 0;
-					if (a.width > b.width) {
-						r = 1;
-					} else if (b.width > a.width) {
-						r = -1;
-					}
-					return r;
-				});
+                // sort narrowest image first
+                sourceSet.sort(function (a, b) {
+                    var r = 0;
+                    if (a.width > b.width) {
+                        r = 1;
+                    } else if (b.width > a.width) {
+                        r = -1;
+                    }
+                    return r;
+                });
 
-				image.setAttribute("data-src-num", i);
+                // note the key in array for further reference
+                image.setAttribute("data-src-num", i);
 
-				self.imageSets[i] = {
-					sourceSet: sourceSet,
-					image: image,
-					loadingImage: null
-				};
-				i++;
-			});
+                // add to set
+                self.imageSets[i] = {
+                    sourceSet: sourceSet,
+                    image: image,
+                    loadingImage: null
+                };
+                i++;
+            });
 
-			if (typeof this.settings.onInit === "function") {
-				this.settings.onInit(this);
-			}
+            // init callback?
+            if (typeof this.settings.onInit === "function") {
+                this.settings.onInit(this);
+            }
 
-			// Without observers load all directly
-			// if directCallCallback is set: load all directly
-			if (!window.IntersectionObserver) {
-				this.imageSets.forEach(function (imageSet) {
-					self.loadImage(imageSet.image);
-				});
-				return;
-			}
+            // Without observers load all directly
+            if (!window.IntersectionObserver) {
+                this.imageSets.forEach(function (imageSet) {
+                    self.loadImage(imageSet.image);
+                });
+                return;
+            }
 
-			this.observer = new IntersectionObserver(function (entries) {
-				entries.forEach(function (entry) {
-					if (entry.intersectionRatio > 0) {
-						//self.observer.unobserve(entry.target);
-						self.loadImage(entry.target);
-					}
-				});
-			}, {
-					root: null,
-					rootMargin: "0px",
-					threshold: [0]
-				});
+            // observe each image
+            this.observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.intersectionRatio > 0) {
+                        //self.observer.unobserve(entry.target);
+                        self.loadImage(entry.target);
+                    }
+                });
+            }, {
+                    root: null,
+                    rootMargin: "0px",
+                    threshold: [0]
+                });
 
-			this.imageSets.forEach(function (imageSet) {
-				self.observer.observe(imageSet.image);
-			});
-		},
+            this.imageSets.forEach(function (imageSet) {
+                self.observer.observe(imageSet.image);
+            });
+        },
 
-		getBestImageSrc: function (imageSet) {
-			var targetWidth = imageSet.image.parentNode.clientWidth * this.devicePixelRatio;
+        /**
+         * @param {object} imageSet
+         */
+        getBestImageSrc: function (imageSet) {
+            var targetWidth = imageSet.image.parentNode.clientWidth * this.devicePixelRatio;
 
-			for (var i = 0; i < imageSet.sourceSet.length; i++) {
-				if (targetWidth < imageSet.sourceSet[i].width) {
-					return imageSet.sourceSet[i].src;
-				}
-			}
-			
-			return imageSet.sourceSet[imageSet.sourceSet.length].src; // largest src fallback
-		},
+            for (var i = 0; i < imageSet.sourceSet.length; i++) {
+                if (targetWidth < imageSet.sourceSet[i].width) {
+                    return imageSet.sourceSet[i].src;
+                }
+            }
 
-		loadImage: function (image) {
-			var n = parseInt(image.getAttribute("data-src-num")),
-				is = this.imageSets[n],
-				newSrc = this.getBestImageSrc(is),
-				self = this;
+            return imageSet.sourceSet[imageSet.sourceSet.length].src; // largest src fallback
+        },
 
-			if (newSrc !== image.getAttribute("src")) {
-				is.loadingImage = new Image();
-				is.loadingImage.setAttribute("src", newSrc);
-				is.loadingImage.setAttribute("data-src-num", n);
-				is.loadingImage.addEventListener("load", function (evt) {
-					var m = parseInt(evt.target.getAttribute("data-src-num"));
-					if (self.imageSets[m]) {
-						self.imageSets[m].image.setAttribute("src", evt.target.getAttribute("src"));
-					}
-				});
-			}
-		}
-	};
+        /**
+         * @param {oject} image
+         */
+        loadImage: function (image) {
+            var n = parseInt(image.getAttribute("data-src-num")),
+                is = this.imageSets[n],
+                newSrc = this.getBestImageSrc(is),
+                self = this;
 
-	if (typeof define === 'function' && define.amd) {
-		define(function () {
-			return AvailableSpaceImages;
-		});
-	} else {
-		window.AvailableSpaceImages = AvailableSpaceImages;
-	}
+            if (newSrc !== image.getAttribute("src")) {
+                // load new image before setting it
+                is.loadingImage = new Image();
+                is.loadingImage.setAttribute("src", newSrc);
+                is.loadingImage.setAttribute("data-src-num", n);
+                is.loadingImage.addEventListener("load", function (evt) {
+                    var m = parseInt(evt.target.getAttribute("data-src-num"));
+                    if (self.imageSets[m]) {
+                        self.imageSets[m].image.setAttribute("src", evt.target.getAttribute("src"));
+                    }
+                });
+            }
+        }
+    };
+
+    if (typeof define === 'function' && define.amd) {
+        define(function () {
+            return AvailableSpaceImages;
+        });
+    } else {
+        window.AvailableSpaceImages = AvailableSpaceImages;
+    }
 
 })(window);
