@@ -4,6 +4,8 @@ Loads the image source when the image enters the viewport.
 
 ## Typical img-tag definition
 
+There should be some variants of the image in different widths. All set in data-src-WIDTH attributes:
+
 ```
 <img src="320.png" alt="" width="1000" height="500"
 	data-method="mab-available-space-image"
