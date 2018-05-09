@@ -129,14 +129,14 @@
          */
         getBestImageSrc: function (imageSet) {
             var targetWidth = imageSet.image.parentNode.clientWidth * this.devicePixelRatio;
+            console.log(targetWidth);
 
             for (var i = 0; i < imageSet.sourceSet.length; i++) {
                 if (targetWidth < imageSet.sourceSet[i].width) {
                     return imageSet.sourceSet[i].src;
                 }
             }
-
-            return imageSet.sourceSet[imageSet.sourceSet.length].src; // largest src fallback
+            return imageSet.sourceSet[imageSet.sourceSet.length -1].src; // largest src fallback
         },
 
         /**
