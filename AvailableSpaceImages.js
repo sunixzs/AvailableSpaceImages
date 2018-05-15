@@ -41,29 +41,49 @@
     }
 
     AvailableSpaceImages.prototype = {
+        /**
+         * IE/Edge in iframes have a problem to detect, if an image is in viewport.
+         */
+        isExplorer: function () {
+            return (document.documentMode || /Edge/.test(navigator.userAgent));
+        },
+        isInIframe: function () {
+            try {
+                return window.self !== window.top;
+            } catch (e) {
+                return true;
+            }
+        },
+
+        /**
+         * 
+         */
         init: function () {
             var self = this;
 
             // build images data
-            var i = 0;
-            this.imageCollection.forEach(function (image) {
-                if (image.tagName.toLowerCase() !== "img") {
+            var iNum = 0;
+            for (var i = 0; i < this.imageCollection.length; i++) {
+                var img = this.imageCollection[i];
+
+                if (img.tagName.toLowerCase() !== "img") {
                     return; // continue
                 }
 
                 // build source-set
                 var sourceSet = [{
                     width: 320,
-                    src: image.getAttribute("src")
+                    src: img.getAttribute("src")
                 }];
 
-                for (var a = 0; a < image.attributes.length; a++) {
-                    if (image.attributes[a].nodeName.indexOf("data-src-") === 0) {
-                        var k = parseInt(image.attributes[a].nodeName.replace("data-src-", ""));
+                for (var a = 0; a < img.attributes.length; a++) {
+                    var ia = img.attributes[a];
+                    if (ia.nodeName.indexOf("data-src-") === 0) {
+                        var k = parseInt(ia.nodeName.replace("data-src-", ""));
                         if (k) {
                             sourceSet.push({
                                 width: k,
-                                src: image.attributes[a].nodeValue
+                                src: ia.nodeValue
                             });
                         }
                     }
@@ -81,16 +101,16 @@
                 });
 
                 // note the key in array for further reference
-                image.setAttribute("data-src-num", i);
+                img.setAttribute("data-src-num", iNum);
 
                 // add to set
-                self.imageSets[i] = {
+                this.imageSets[iNum] = {
                     sourceSet: sourceSet,
-                    image: image,
+                    image: img,
                     loadingImage: null
                 };
-                i++;
-            });
+                iNum++;
+            }
 
             // init callback?
             if (typeof this.settings.onInit === "function") {
@@ -98,30 +118,30 @@
             }
 
             // Without observers load all directly
-            if (!window.IntersectionObserver) {
-                this.imageSets.forEach(function (imageSet) {
-                    self.loadImage(imageSet.image);
-                });
+            // or explorer/edge in iframe
+            if (!window.IntersectionObserver || (this.isExplorer() && this.isInIframe())) {
+                for (var i = 0; i < this.imageSets.length; i++) {
+                    this.loadImage(this.imageSets[i].image);
+                }
                 return;
             }
 
             // observe each image
             this.observer = new IntersectionObserver(function (entries) {
-                entries.forEach(function (entry) {
-                    if (entry.intersectionRatio > 0) {
-                        //self.observer.unobserve(entry.target);
-                        self.loadImage(entry.target);
+                for (var i = 0; i < entries.length; i++) {
+                    if (entries[i].intersectionRatio > 0) {
+                        self.loadImage(entries[i].target);
                     }
-                });
+                }
             }, {
                     root: null,
                     rootMargin: "0px",
                     threshold: [0]
                 });
 
-            this.imageSets.forEach(function (imageSet) {
-                self.observer.observe(imageSet.image);
-            });
+            for (var i = 0; i < this.imageSets.length; i++) {
+                this.observer.observe(this.imageSets[i].image);
+            }
         },
 
         /**
@@ -129,14 +149,12 @@
          */
         getBestImageSrc: function (imageSet) {
             var targetWidth = imageSet.image.parentNode.clientWidth * this.devicePixelRatio;
-            console.log(targetWidth);
-
             for (var i = 0; i < imageSet.sourceSet.length; i++) {
                 if (targetWidth < imageSet.sourceSet[i].width) {
                     return imageSet.sourceSet[i].src;
                 }
             }
-            return imageSet.sourceSet[imageSet.sourceSet.length -1].src; // largest src fallback
+            return imageSet.sourceSet[imageSet.sourceSet.length - 1].src; // largest src fallback
         },
 
         /**
