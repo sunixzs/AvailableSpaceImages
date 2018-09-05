@@ -9,6 +9,7 @@ There should be some variants of the image in different widths. All set in data-
 ```
 <img src="320.png" alt="" width="1000" height="500"
 	data-method="mab-available-space-image"
+	data-default-width="320"
 	data-src-500="500.png"
 	data-src-1000="1000.png"
 	data-src-1500="1500.png"
